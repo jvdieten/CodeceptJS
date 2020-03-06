@@ -6,6 +6,7 @@ const semver = require('semver');
 const runner = path.join(__dirname, '/../../bin/codecept.js');
 const codecept_dir = path.join(__dirname, '/../data/sandbox');
 const codecept_run = `${runner} run-workers --config ${codecept_dir}/codecept.workers.conf.js `;
+const codecept_run_glob = config => `${runner} run-workers --config ${codecept_dir}/${config} `;
 
 describe('CodeceptJS Workers Runner', function () {
   this.timeout(40000);
@@ -71,6 +72,63 @@ describe('CodeceptJS Workers Runner', function () {
       stdout.should.include('message 1');
       stdout.should.include('message 2');
       stdout.should.include('see this is worker');
+      assert(!err);
+      done();
+    });
+  });
+
+  it('should run tests with glob pattern', function (done) {
+    if (!semver.satisfies(process.version, '>=11.7.0')) this.skip('not for node version');
+    exec(`${codecept_run_glob('codecept.workers-glob.conf.js')} 1 --grep "grep" --debug`, (err, stdout, stderr) => {
+      stdout.should.include('CodeceptJS'); // feature
+      stdout.should.include('Running tests in 1 workers');
+      stdout.should.include('bootstrap b1+b2');
+      stdout.should.include('message 1');
+      stdout.should.include('message 2');
+      stdout.should.include('see this is worker');
+      assert(!err);
+      done();
+    });
+  });
+
+  it('should print empty results with incorrect glob pattern', function (done) {
+    if (!semver.satisfies(process.version, '>=11.7.0')) this.skip('not for node version');
+    exec(`${codecept_run_glob('codecept.workers-incorrect-glob.conf.js')} 1 --grep "grep" --debug`, (err, stdout, stderr) => {
+      stdout.should.include('CodeceptJS'); // feature
+      stdout.should.include('Running tests in 1 workers');
+      stdout.should.include('OK  | 0 passed');
+      assert(!err);
+      done();
+    });
+  });
+
+  it('should retry test', function (done) {
+    if (!semver.satisfies(process.version, '>=11.7.0')) this.skip('not for node version');
+    exec(`${codecept_run} 2 --grep "retry"`, (err, stdout, stderr) => {
+      stdout.should.include('CodeceptJS'); // feature
+      stdout.should.include('OK  | 1 passed');
+      done();
+    });
+  });
+
+  it('should create output folder with custom name', function (done) {
+    const fs = require('fs');
+    const customName = 'thisIsCustomOutputFolderName';
+    const outputDir = `${codecept_dir}/${customName}`;
+    let createdOutput = false;
+
+    if (fs.existsSync(outputDir)) {
+      fs.rmdirSync(outputDir, { recursive: true });
+    }
+
+    if (!semver.satisfies(process.version, '>=11.7.0')) this.skip('not for node version');
+    const configFileName = 'codecept.workers-custom-output-folder-name.conf.js';
+    exec(`${codecept_run_glob(configFileName)} 2 --grep "grep" --debug`, (err, stdout, stderr) => {
+      stdout.should.include(customName);
+      if (fs.existsSync(outputDir)) {
+        createdOutput = true;
+      }
+      assert(createdOutput, 'The output folder is not created');
       assert(!err);
       done();
     });
